@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Skin Analysis</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface:        #fcfcfb;
+    --surface-2:      #ffffff;
+    --page:           #f9f9f7;
+    --ink:            #0b0b0b;
+    --ink-2:          #52514e;
+    --muted:          #898781;
+    --hairline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --accent:         #00afef;   /* Karadenta blue — logo color: meter fills, large washes */
+    --accent-strong:  #007099;   /* blue text-on-surface: values, headings-on-wash */
+    --accent-btn:     #007099;   /* button fill — fixed across modes, holds white text */
+    --accent-track:   #dcf1f9;   /* lighter step of the same ramp */
+    --accent-wash:    #eff8fb;
+    --leaf:           #a8cf45;   /* Karadenta leaf green — logo accent, decorative only */
+    --good:           #0ca30c;
+    --critical:       #d03b3b;
+    --shadow: 0 1px 2px rgba(11,11,11,0.04), 0 8px 24px -12px rgba(11,11,11,0.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --surface:        #201d1a;
+      --surface-2:      #201d1a;
+      --page:           #0d0d0d;
+      --ink:            #ffffff;
+      --ink-2:          #c3c2b7;
+      --muted:          #898781;
+      --hairline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --accent:         #00afef;
+      --accent-strong:  #4dcfff;
+      --accent-btn:     #007099;
+      --accent-track:   #1c3e4a;
+      --accent-wash:    #172d36;
+      --leaf:           #a8cf45;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--page);
+    color:var(--ink);
+    padding:0 0 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:460px;margin:0 auto;padding:0 16px;}
+
+  /* ---------- Header ---------- */
+  .topbar{
+    background:linear-gradient(155deg, var(--accent) 0%, var(--accent-strong) 100%);
+    padding:28px 16px 34px;
+    margin-bottom:-20px;
+    color:#fff;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar::after{
+    content:"";
+    position:absolute;right:-30px;top:-30px;
+    width:140px;height:140px;border-radius:50%;
+    background:var(--leaf);opacity:0.16;
+  }
+  .topbar-inner{max-width:460px;margin:0 auto;text-align:center;position:relative;}
+  .logo-badge{
+    display:inline-block;
+    background:#fff;
+    border-radius:12px;
+    padding:10px 18px;
+    margin-bottom:14px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.12);
+  }
+  .logo-badge img{display:block;height:30px;width:auto;}
+  .wordmark{
+    font-size:0.78rem;letter-spacing:.12em;text-transform:uppercase;
+    opacity:0.9;margin:0 0 6px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+  }
+  .wordmark .leaf-dot{
+    width:7px;height:7px;border-radius:50%;background:var(--leaf);
+    display:inline-block;
+  }
+  .topbar h1{
+    font-size:1.5rem;margin:0 0 6px;font-weight:700;letter-spacing:-0.01em;
+  }
+  .topbar p{margin:0;font-size:0.9rem;opacity:0.92;}
+
+  /* ---------- Cards ---------- */
+  .card{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:18px;
+    box-shadow:var(--shadow);
+    padding:20px;
+    margin-bottom:16px;
+    position:relative;
+    z-index:1;
+  }
+
+  /* ---------- Upload zone ---------- */
+  .upload-box{
+    display:block;
+    border:1.5px dashed var(--hairline);
+    border-radius:14px;
+    padding:30px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .upload-box:hover{border-color:var(--accent);background:var(--accent-wash);}
+  .upload-box.has-image{padding:12px;}
+  .upload-box .icon-circle{
+    width:52px;height:52px;border-radius:50%;
+    background:var(--accent-wash);
+    display:flex;align-items:center;justify-content:center;
+    margin:0 auto 12px;font-size:1.4rem;
+  }
+  .upload-box .title{font-weight:600;font-size:0.95rem;color:var(--ink);}
+  .upload-box .hint{margin:4px 0 0;color:var(--muted);font-size:0.82rem;line-height:1.4;}
+  #preview{
+    max-width:100%;
+    max-height:320px;
+    border-radius:10px;
+    display:none;
+    object-fit:cover;
+  }
+  input[type=file]{display:none;}
+
+  .remove-link{
+    display:none;
+    text-align:center;font-size:0.8rem;color:var(--muted);
+    margin-top:10px;background:none;border:none;cursor:pointer;
+    text-decoration:underline;padding:4px;
+  }
+
+  button.primary{
+    width:100%;
+    background:var(--accent-btn);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    padding:14px;
+    font-size:0.98rem;
+    font-weight:600;
+    margin-top:16px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    transition:background .15s ease, transform .1s ease;
+    font-family:inherit;
+  }
+  button.primary:not(:disabled):active{transform:scale(0.98);}
+  button.primary:disabled{opacity:0.45;cursor:not-allowed;}
+
+  .spinner{
+    width:16px;height:16px;border-radius:50%;
+    border:2px solid rgba(255,255,255,0.4);
+    border-top-color:#fff;
+    animation:spin 0.7s linear infinite;
+    display:none;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading .spinner{display:inline-block;}
+
+  .status{
+    text-align:center;
+    color:var(--ink-2);
+    font-size:0.83rem;
+    margin-top:12px;
+    min-height:1.2em;
+    line-height:1.5;
+  }
+
+  .error{
+    display:flex;gap:10px;align-items:flex-start;
+    background:color-mix(in srgb, var(--critical) 10%, var(--surface-2));
+    border:1px solid color-mix(in srgb, var(--critical) 25%, transparent);
+    color:var(--critical);
+    border-radius:12px;padding:12px 14px;font-size:0.85rem;margin-top:12px;
+    line-height:1.5;
+  }
+  .hidden{display:none !important;}
+
+  /* ---------- Results / meters ---------- */
+  .result-card h2{
+    font-size:1.05rem;margin:0 0 4px;font-weight:700;
+  }
+  .result-card .result-sub{
+    margin:0 0 18px;color:var(--muted);font-size:0.82rem;
+  }
+
+  .meter-row{margin-bottom:16px;}
+  .meter-row:last-child{margin-bottom:4px;}
+  .meter-label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:0.88rem;font-weight:600;color:var(--ink);margin-bottom:6px;
+  }
+  .meter-label .value{
+    font-weight:700;color:var(--accent-strong);font-variant-numeric:proportional-nums;
+  }
+  .meter-track{
+    background:var(--accent-track);
+    border-radius:5px;
+    height:10px;
+    overflow:hidden;
+  }
+  .meter-fill{
+    height:100%;
+    background:var(--accent);
+    border-radius:5px;
+    min-width:10px;
+    transition:width .6s cubic-bezier(.22,.9,.32,1);
+  }
+
+  /* ---------- CTA ---------- */
+  .cta{
+    background:var(--accent-wash);
+    border-radius:14px;
+    padding:18px;
+    text-align:center;
+    margin-top:18px;
+  }
+  .cta p{margin:0 0 12px;font-size:0.88rem;color:var(--ink);line-height:1.5;}
+  .cta a{
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+    background:#25D366;
+    color:#fff;
+    text-decoration:none;
+    padding:11px 22px;
+    border-radius:10px;
+    font-weight:600;
+    font-size:0.88rem;
+    width:100%;
+  }
+
+  .disclaimer{
+    font-size:0.74rem;color:var(--muted);text-align:center;margin-top:20px;line-height:1.6;
+    padding:0 8px;
+  }
+  footer.credit{
+    text-align:center;color:var(--muted);font-size:0.72rem;margin-top:28px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .meter-fill{transition:none;}
+    .spinner{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <p class="wordmark"><span class="leaf-dot"></span>Beauty Clinic<span class="leaf-dot"></span></p>
+    <h1>AI Skin Analysis</h1>
+    <p>Foto wajahmu, dapatkan gambaran kondisi kulit dalam hitungan detik</p>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <label class="upload-box" id="uploadBox">
+      <div id="uploadPrompt">
+        <div class="icon-circle">📷</div>
+        <div class="title">Unggah foto wajah</div>
+        <p class="hint">Pencahayaan cukup, wajah menghadap kamera, tanpa makeup tebal</p>
+      </div>
+      <img id="preview" alt="Preview foto">
+      <input type="file" id="fileInput" accept="image/*" capture="user">
+    </label>
+    <button type="button" class="remove-link" id="removeBtn">Ganti foto</button>
+
+    <button class="primary" id="analyzeBtn" disabled>
+      <span class="spinner" id="spinner"></span>
+      <span id="btnLabel">Analisis Kulit Sekarang</span>
+    </button>
+    <div class="status" id="statusText"></div>
+    <div class="error hidden" id="errorBox">
+      <span>⚠️</span><span id="errorText"></span>
+    </div>
+  </div>
+
+  <div class="card result-card hidden" id="resultCard">
+    <h2>Hasil Analisis Kulitmu</h2>
+    <p class="result-sub">Semakin tinggi persentase, semakin terlihat tanda kondisi tersebut pada foto</p>
+    <div id="scoresWrap"></div>
+
+    <div class="cta">
+      <p>Ingin rekomendasi treatment yang sesuai kondisi kulitmu?</p>
+      <a href="https://wa.me/6287853538913?text=Halo%20Karadenta%2C%20saya%20baru%20coba%20AI%20Skin%20Analysis%20dan%20ingin%20konsultasi" target="_blank" rel="noopener">
+        💬 Konsultasi Gratis via WhatsApp
+      </a>
+    </div>
+  </div>
+
+  <p class="disclaimer">Hasil analisis ini dihasilkan otomatis oleh AI sebagai panduan awal, bukan diagnosis medis. Untuk penilaian akurat, konsultasikan langsung dengan tenaga kesehatan.</p>
+  <footer class="credit">Portofolio Irma Indriana Hariawang</footer>
+</div>
+
+<script>
+  // ============================================================
+  // KONFIGURASI — ganti baris di bawah ini setelah Bagian A selesai
+  // Contoh: const API_URL = "https://skin-scan-xxxx.onrender.com";
+  // ============================================================
+  const API_URL = "https://skin-scan-api-jv38.onrender.com";
+  // ============================================================
+
+  const LABELS = {
+    redness: "Kemerahan",
+    oiliness: "Minyak Berlebih",
+    texture: "Tekstur Kulit",
+    pores: "Ukuran Pori-pori",
+    blemishes: "Noda / Jerawat",
+    hydration: "Kelembapan",
+    pigment: "Pigmentasi / Flek",
+  };
+
+  const uploadBox = document.getElementById('uploadBox');
+  const uploadPrompt = document.getElementById('uploadPrompt');
+  const fileInput = document.getElementById('fileInput');
+  const preview = document.getElementById('preview');
+  const removeBtn = document.getElementById('removeBtn');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const btnLabel = document.getElementById('btnLabel');
+  const statusText = document.getElementById('statusText');
+  const errorBox = document.getElementById('errorBox');
+  const errorText = document.getElementById('errorText');
+  const resultCard = document.getElementById('resultCard');
+  const scoresWrap = document.getElementById('scoresWrap');
+
+  let selectedFile = null;
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    selectedFile = file;
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    uploadPrompt.style.display = 'none';
+    uploadBox.classList.add('has-image');
+    removeBtn.style.display = 'block';
+    analyzeBtn.disabled = false;
+    errorBox.classList.add('hidden');
+    resultCard.classList.add('hidden');
+  });
+
+  removeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    selectedFile = null;
+    fileInput.value = '';
+    preview.style.display = 'none';
+    uploadPrompt.style.display = 'block';
+    uploadBox.classList.remove('has-image');
+    removeBtn.style.display = 'none';
+    analyzeBtn.disabled = true;
+    resultCard.classList.add('hidden');
+    errorBox.classList.add('hidden');
+  });
+
+  analyzeBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    if (!API_URL || API_URL.indexOf('PASTE_URL_RENDER_KAMU_DI_SINI') !== -1) {
+      showError('URL API belum diisi. Selesaikan Bagian A dulu, lalu ganti API_URL di file ini.');
+      return;
+    }
+
+    setLoading(true);
+    resultCard.classList.add('hidden');
+    errorBox.classList.add('hidden');
+
+    const startedAt = Date.now();
+    const tick = () => {
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      statusText.textContent = 'Menganalisis foto... (' + secs + ' detik — percobaan pertama setelah lama tidak dipakai bisa 1–2 menit karena server "bangun" dulu)';
+    };
+    tick();
+    const tickInterval = setInterval(tick, 1000);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 150000);
+
+    try {
+      // 1600px & kualitas 0.9 dipilih supaya detail sehalus pori (radius 2-5px
+      // di algoritma deteksi pori) tidak hilang akibat kompresi, tapi tetap
+      // lebih ringan dibanding foto asli HP (biasanya 3000-4000px).
+      const compressed = await compressImage(selectedFile, 1600, 0.9);
+
+      const formData = new FormData();
+      formData.append('image', compressed, 'photo.jpg');
+
+      const res = await fetch(API_URL.replace(/\/$/, '') + '/scan', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        throw new Error('Server merespons dengan error (' + res.status + ')');
+      }
+
+      const data = await res.json();
+      renderScores(data.scores || {});
+      statusText.textContent = '';
+      resultCard.classList.remove('hidden');
+      resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (err) {
+      statusText.textContent = '';
+      if (err.name === 'AbortError') {
+        showError('Server terlalu lama merespons (lebih dari 2.5 menit). Coba lagi sekali lagi — biasanya percobaan kedua jauh lebih cepat karena server sudah "bangun".');
+      } else {
+        showError('Gagal menganalisis: ' + err.message + '. Coba lagi dalam beberapa saat.');
+      }
+    } finally {
+      clearInterval(tickInterval);
+      clearTimeout(timeoutId);
+      setLoading(false);
+    }
+  });
+
+  function setLoading(isLoading) {
+    analyzeBtn.disabled = isLoading;
+    analyzeBtn.classList.toggle('loading', isLoading);
+    btnLabel.textContent = isLoading ? 'Menganalisis...' : 'Analisis Kulit Sekarang';
+  }
+
+  function showError(msg) {
+    errorText.textContent = msg;
+    errorBox.classList.remove('hidden');
+  }
+
+  function renderScores(scores) {
+    scoresWrap.innerHTML = '';
+    Object.keys(LABELS).forEach((key) => {
+      if (!(key in scores)) return;
+      const raw = scores[key];
+      const pct = Math.round(Math.max(0, Math.min(1, raw)) * 100);
+
+      const row = document.createElement('div');
+      row.className = 'meter-row';
+      row.innerHTML = `
+        <div class="meter-label"><span>${LABELS[key]}</span><span class="value">${pct}%</span></div>
+        <div class="meter-track"><div class="meter-fill" style="width:0%" data-target="${pct}"></div></div>
+      `;
+      scoresWrap.appendChild(row);
+    });
+    // animate fills in on next frame
+    requestAnimationFrame(() => {
+      scoresWrap.querySelectorAll('.meter-fill').forEach((el) => {
+        el.style.width = el.dataset.target + '%';
+      });
+    });
+  }
+
+  // Perkecil & kompres foto di sisi HP sebelum dikirim, supaya proses di server
+  // (yang CPU-nya terbatas di tier gratis) jauh lebih ringan dan cepat.
+  function compressImage(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else if (height >= width && height > maxDim) {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('Gagal memproses gambar'))),
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Gagal membaca file gambar'));
+      };
+      img.src = url;
+    });
+  }
+</script>
+</body>
+</html>
